@@ -1,0 +1,13 @@
+project_id = "whwlmubbrjlknlxsejdi"
+
+[functions.speedtest-ping]
+verify_jwt = false
+
+[functions.speedtest-download]
+verify_jwt = false
+
+[functions.speedtest-upload]
+verify_jwt = false
+
+[functions.ip-info]
+verify_jwt = false
