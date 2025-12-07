@@ -6,10 +6,19 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Length, X-Bytes-Total, X-Server-Time',
 };
 
-// Generate random bytes for download testing
+// Generate random bytes in chunks to avoid crypto.getRandomValues() 64KB limit
 function generateRandomBytes(size: number): Uint8Array {
   const buffer = new Uint8Array(size);
-  crypto.getRandomValues(buffer);
+  const chunkSize = 65536; // 64KB max for crypto.getRandomValues
+  
+  for (let offset = 0; offset < size; offset += chunkSize) {
+    const remaining = size - offset;
+    const currentChunkSize = Math.min(chunkSize, remaining);
+    const chunk = new Uint8Array(currentChunkSize);
+    crypto.getRandomValues(chunk);
+    buffer.set(chunk, offset);
+  }
+  
   return buffer;
 }
 
@@ -21,14 +30,14 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const sizeParam = url.searchParams.get('size') || '1048576'; // Default 1MB
-    const size = Math.min(Math.max(parseInt(sizeParam, 10), 1024), 50 * 1024 * 1024); // Min 1KB, Max 50MB
+    const size = Math.min(Math.max(parseInt(sizeParam, 10), 1024), 10 * 1024 * 1024); // Min 1KB, Max 10MB
     
     console.log(`Download request: size=${size} bytes`);
 
     const data = generateRandomBytes(size);
     const serverTime = Date.now();
 
-    return new Response(new Uint8Array(data).buffer as ArrayBuffer, {
+    return new Response(data.buffer as ArrayBuffer, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/octet-stream',

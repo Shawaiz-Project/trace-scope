@@ -4,18 +4,20 @@ import { SectionCard } from "@/components/SectionCard";
 import { InfoCard } from "@/components/InfoCard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SpeedTestPanel } from "@/components/SpeedTestPanel";
+import { TestHistory } from "@/components/TestHistory";
 import { getDeviceInfo } from "@/lib/deviceInfo";
 import { fetchIPInfo, type SpeedTestResult } from "@/lib/speedtest";
-import { 
-  Network, 
-  Monitor, 
-  Gauge, 
-  MapPin, 
+import {
+  Network,
+  Monitor,
+  Gauge,
+  MapPin,
   Loader2,
   Download,
   Globe,
   Zap,
-  RefreshCw
+  RefreshCw,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,7 +28,10 @@ interface IPInfo {
   vpnDetected: boolean;
   reverseDns: string;
   city: string;
+  region: string;
   country: string;
+  countryCode: string;
+  timezone: string;
   ipType: string;
   userAgent?: string;
 }
@@ -36,7 +41,7 @@ const Index = () => {
   const [deviceInfo, setDeviceInfo] = useState<ReturnType<typeof getDeviceInfo> | null>(null);
   const [ipInfo, setIpInfo] = useState<IPInfo | null>(null);
   const [speedResult, setSpeedResult] = useState<SpeedTestResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'speedtest' | 'info'>('speedtest');
+  const [activeTab, setActiveTab] = useState<"speedtest" | "info" | "history">("speedtest");
 
   const checkInfo = async () => {
     setLoading(true);
@@ -50,33 +55,38 @@ const Index = () => {
         const ipData = await fetchIPInfo();
         setIpInfo({
           ip: ipData.ip,
-          isp: ipData.isp || 'Unknown ISP',
-          asn: ipData.asn || 'Unknown',
+          isp: ipData.isp || "Unknown ISP",
+          asn: ipData.asn || "Unknown",
           vpnDetected: ipData.vpnDetected || false,
-          reverseDns: ipData.reverseDns || '',
-          city: ipData.city || 'Unknown',
-          country: ipData.country || 'Unknown',
-          ipType: ipData.ipType || 'IPv4',
+          reverseDns: ipData.reverseDns || "",
+          city: ipData.city || "Unknown",
+          region: ipData.region || "Unknown",
+          country: ipData.country || "Unknown",
+          countryCode: ipData.countryCode || "XX",
+          timezone: ipData.timezone || "Unknown",
+          ipType: ipData.ipType || "IPv4",
           userAgent: ipData.userAgent,
         });
       } catch (err) {
-        console.error('Failed to fetch IP info:', err);
-        // Use placeholder if backend call fails
+        console.error("Failed to fetch IP info:", err);
         setIpInfo({
-          ip: 'Unavailable',
-          isp: 'Unknown',
-          asn: 'Unknown',
+          ip: "Unavailable",
+          isp: "Unknown",
+          asn: "Unknown",
           vpnDetected: false,
-          reverseDns: '',
-          city: 'Unknown',
-          country: 'Unknown',
-          ipType: 'Unknown',
+          reverseDns: "",
+          city: "Unknown",
+          region: "Unknown",
+          country: "Unknown",
+          countryCode: "XX",
+          timezone: "Unknown",
+          ipType: "Unknown",
         });
       }
 
       toast.success("Information loaded successfully!");
     } catch (error) {
-      console.error('Error loading info:', error);
+      console.error("Error loading info:", error);
       toast.error("Failed to load information");
     } finally {
       setLoading(false);
@@ -110,9 +120,11 @@ const Index = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     toast.success("Report downloaded!");
   };
+
+  const locationString = ipInfo ? `${ipInfo.city}, ${ipInfo.country}` : undefined;
 
   return (
     <div className="min-h-screen bg-bg-gradient">
@@ -124,13 +136,8 @@ const Index = () => {
             <h1 className="text-xl font-bold">SpeedTest Pro</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={checkInfo}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <Button variant="ghost" size="sm" onClick={checkInfo} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
             <ThemeToggle />
           </div>
@@ -139,28 +146,39 @@ const Index = () => {
 
       {/* Tab Navigation */}
       <div className="container mx-auto px-4 py-4 max-w-4xl">
-        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit mx-auto">
+        <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit mx-auto">
           <button
-            onClick={() => setActiveTab('speedtest')}
-            className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'speedtest'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+            onClick={() => setActiveTab("speedtest")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              activeTab === "speedtest"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Gauge className="w-4 h-4 inline-block mr-2" />
-            Speed Test
+            <Gauge className="w-4 h-4" />
+            <span className="hidden sm:inline">Speed Test</span>
           </button>
           <button
-            onClick={() => setActiveTab('info')}
-            className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'info'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+            onClick={() => setActiveTab("history")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              activeTab === "history"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Globe className="w-4 h-4 inline-block mr-2" />
-            Device Info
+            <History className="w-4 h-4" />
+            <span className="hidden sm:inline">History</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("info")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              activeTab === "info"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span className="hidden sm:inline">Device Info</span>
           </button>
         </div>
       </div>
@@ -168,11 +186,16 @@ const Index = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-4 max-w-4xl">
         {/* Speed Test Tab */}
-        {activeTab === 'speedtest' && (
+        {activeTab === "speedtest" && (
           <div className="space-y-6">
             {/* Speed Test Panel */}
             <div className="bg-card border border-border rounded-xl p-6 md:p-8">
-              <SpeedTestPanel onComplete={setSpeedResult} />
+              <SpeedTestPanel
+                onComplete={setSpeedResult}
+                ipAddress={ipInfo?.ip}
+                isp={ipInfo?.isp}
+                location={locationString}
+              />
             </div>
 
             {/* Quick IP Info */}
@@ -188,19 +211,32 @@ const Index = () => {
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4 text-center">
                   <div className="text-xs text-muted-foreground mb-1">Location</div>
-                  <div className="text-sm truncate">{ipInfo.city}, {ipInfo.country}</div>
+                  <div className="text-sm truncate">
+                    {ipInfo.city}, {ipInfo.country}
+                  </div>
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4 text-center">
                   <div className="text-xs text-muted-foreground mb-1">Connection</div>
-                  <div className="text-sm">{deviceInfo?.network.connectionType || 'Unknown'}</div>
+                  <div className="text-sm">{deviceInfo?.network.connectionType || "Unknown"}</div>
                 </div>
               </div>
             )}
           </div>
         )}
 
+        {/* History Tab */}
+        {activeTab === "history" && (
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Test History
+            </h2>
+            <TestHistory />
+          </div>
+        )}
+
         {/* Device Info Tab */}
-        {activeTab === 'info' && (
+        {activeTab === "info" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Download Report Button */}
             {deviceInfo && (
@@ -219,9 +255,11 @@ const Index = () => {
                 <InfoCard label="ISP" value={ipInfo.isp} />
                 <InfoCard label="ASN" value={ipInfo.asn} monospace />
                 <InfoCard label="VPN / Proxy" value={ipInfo.vpnDetected ? "Detected" : "Not Detected"} />
-                <InfoCard label="Reverse DNS" value={ipInfo.reverseDns || "N/A"} monospace copyable />
                 <InfoCard label="IP Type" value={ipInfo.ipType} />
-                <InfoCard label="Location" value={`${ipInfo.city}, ${ipInfo.country}`} />
+                <InfoCard label="City" value={ipInfo.city} />
+                <InfoCard label="Region" value={ipInfo.region} />
+                <InfoCard label="Country" value={`${ipInfo.country} (${ipInfo.countryCode})`} />
+                <InfoCard label="Timezone" value={ipInfo.timezone} />
               </SectionCard>
             )}
 
@@ -246,32 +284,14 @@ const Index = () => {
             {/* Network Performance */}
             {deviceInfo && (
               <SectionCard title="Network Performance">
-                <InfoCard 
-                  label="Connection Type" 
-                  value={deviceInfo.network.connectionType} 
-                />
-                <InfoCard 
-                  label="Estimated Speed" 
-                  value={deviceInfo.network.estimatedSpeed} 
-                />
+                <InfoCard label="Connection Type" value={deviceInfo.network.connectionType} />
+                <InfoCard label="Estimated Speed" value={deviceInfo.network.estimatedSpeed} />
                 {speedResult && (
                   <>
-                    <InfoCard 
-                      label="Ping Latency" 
-                      value={`${speedResult.ping.latency.toFixed(1)} ms`} 
-                    />
-                    <InfoCard 
-                      label="Jitter" 
-                      value={`${speedResult.ping.jitter.toFixed(2)} ms`} 
-                    />
-                    <InfoCard 
-                      label="Download Speed" 
-                      value={`${speedResult.download.speedMbps.toFixed(2)} Mbps`} 
-                    />
-                    <InfoCard 
-                      label="Upload Speed" 
-                      value={`${speedResult.upload.speedMbps.toFixed(2)} Mbps`} 
-                    />
+                    <InfoCard label="Ping Latency" value={`${speedResult.ping.latency.toFixed(1)} ms`} />
+                    <InfoCard label="Jitter" value={`${speedResult.ping.jitter.toFixed(2)} ms`} />
+                    <InfoCard label="Download Speed" value={`${speedResult.download.speedMbps.toFixed(2)} Mbps`} />
+                    <InfoCard label="Upload Speed" value={`${speedResult.upload.speedMbps.toFixed(2)} Mbps`} />
                   </>
                 )}
               </SectionCard>
@@ -289,8 +309,8 @@ const Index = () => {
         {/* Privacy Notice */}
         <div className="mt-8 p-4 bg-card/50 rounded-lg border border-border">
           <p className="text-xs text-muted-foreground text-center">
-            🔒 Privacy First: All tests run directly from your browser. 
-            No data is stored on our servers without your consent.
+            🔒 Privacy First: All tests run directly from your browser. No data is stored on our servers without your
+            consent. History is stored locally on your device.
           </p>
         </div>
       </main>
