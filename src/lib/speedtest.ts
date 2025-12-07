@@ -276,7 +276,10 @@ export async function fetchIPInfo(): Promise<{
   isp: string;
   asn: string;
   city: string;
+  region: string;
   country: string;
+  countryCode: string;
+  timezone: string;
   ipType: string;
   vpnDetected: boolean;
   reverseDns: string;

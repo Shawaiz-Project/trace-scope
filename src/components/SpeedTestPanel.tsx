@@ -1,95 +1,133 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { SpeedGauge } from "./SpeedGauge";
-import { 
-  runSpeedTest, 
-  formatSpeed, 
+import { SpeedGraph } from "./SpeedGraph";
+import {
+  runSpeedTest,
+  formatSpeed,
   formatBytes,
   type SpeedTestResult,
   type SpeedTestProgress,
 } from "@/lib/speedtest";
-import { 
-  Play, 
-  Square, 
-  Download, 
-  Upload, 
+import { saveTestResult } from "@/lib/speedHistory";
+import {
+  Play,
+  Square,
+  Download,
+  Upload,
   Activity,
   Wifi,
   Clock,
   BarChart3,
-  Share2
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface SpeedTestPanelProps {
   onComplete?: (result: SpeedTestResult) => void;
+  ipAddress?: string;
+  isp?: string;
+  location?: string;
 }
 
-export function SpeedTestPanel({ onComplete }: SpeedTestPanelProps) {
+interface SpeedDataPoint {
+  time: number;
+  speed: number;
+}
+
+export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTestPanelProps) {
   const [isRunning, setIsRunning] = useState(false);
-  const [progress, setProgress] = useState<SpeedTestProgress>({ phase: 'idle', progress: 0 });
+  const [progress, setProgress] = useState<SpeedTestProgress>({ phase: "idle", progress: 0 });
   const [result, setResult] = useState<SpeedTestResult | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [currentPing, setCurrentPing] = useState(0);
+  const [downloadData, setDownloadData] = useState<SpeedDataPoint[]>([]);
+  const [uploadData, setUploadData] = useState<SpeedDataPoint[]>([]);
+  const startTimeRef = useRef<number>(0);
 
   const startTest = useCallback(async () => {
     setIsRunning(true);
     setResult(null);
     setCurrentSpeed(0);
     setCurrentPing(0);
-    
+    setDownloadData([]);
+    setUploadData([]);
+    startTimeRef.current = Date.now();
+
     try {
       const testResult = await runSpeedTest((prog) => {
         setProgress(prog);
         if (prog.currentSpeed !== undefined) {
           setCurrentSpeed(prog.currentSpeed);
+
+          const timeElapsed = (Date.now() - startTimeRef.current) / 1000;
+
+          if (prog.phase === "download") {
+            setDownloadData((prev) => [...prev, { time: timeElapsed, speed: prog.currentSpeed! }]);
+          } else if (prog.phase === "upload") {
+            setUploadData((prev) => [...prev, { time: timeElapsed, speed: prog.currentSpeed! }]);
+          }
         }
         if (prog.currentPing !== undefined) {
           setCurrentPing(prog.currentPing);
         }
       });
-      
+
       setResult(testResult);
       onComplete?.(testResult);
+
+      // Save to history
+      saveTestResult(testResult, ipAddress, isp, location);
+
       toast.success("Speed test complete!");
     } catch (error) {
       console.error("Speed test failed:", error);
       toast.error("Speed test failed. Please try again.");
     } finally {
       setIsRunning(false);
-      setProgress({ phase: 'idle', progress: 0 });
+      setProgress({ phase: "idle", progress: 0 });
     }
-  }, [onComplete]);
+  }, [onComplete, ipAddress, isp, location]);
 
   const getPhaseLabel = () => {
     switch (progress.phase) {
-      case 'ping': return 'Testing Latency...';
-      case 'download': return 'Testing Download...';
-      case 'upload': return 'Testing Upload...';
-      case 'complete': return 'Complete!';
-      default: return 'Ready';
+      case "ping":
+        return "Testing Latency...";
+      case "download":
+        return "Testing Download...";
+      case "upload":
+        return "Testing Upload...";
+      case "complete":
+        return "Complete!";
+      default:
+        return "Ready";
     }
   };
 
   const getOverallProgress = () => {
     switch (progress.phase) {
-      case 'ping': return progress.progress * 0.1;
-      case 'download': return 10 + progress.progress * 0.45;
-      case 'upload': return 55 + progress.progress * 0.45;
-      case 'complete': return 100;
-      default: return 0;
+      case "ping":
+        return progress.progress * 0.1;
+      case "download":
+        return 10 + progress.progress * 0.45;
+      case "upload":
+        return 55 + progress.progress * 0.45;
+      case "complete":
+        return 100;
+      default:
+        return 0;
     }
   };
 
   const shareResult = () => {
     if (!result) return;
-    
+
     const text = `🚀 Speed Test Results\n📥 Download: ${formatSpeed(result.download.speedMbps)}\n📤 Upload: ${formatSpeed(result.upload.speedMbps)}\n📶 Ping: ${result.ping.latency.toFixed(1)}ms`;
-    
+
     if (navigator.share) {
       navigator.share({
-        title: 'Speed Test Results',
+        title: "Speed Test Results",
         text: text,
       }).catch(() => {
         navigator.clipboard.writeText(text);
@@ -101,18 +139,37 @@ export function SpeedTestPanel({ onComplete }: SpeedTestPanelProps) {
     }
   };
 
+  const graphPhase = progress.phase === "download" ? "download" : progress.phase === "upload" ? "upload" : "idle";
+  const graphData = progress.phase === "download" ? downloadData : progress.phase === "upload" ? uploadData : result ? downloadData : [];
+
   return (
     <div className="space-y-6">
       {/* Main Gauge Display */}
       <div className="flex flex-col items-center">
         <SpeedGauge
-          value={isRunning ? currentSpeed : (result?.download.speedMbps || 0)}
+          value={isRunning ? currentSpeed : result?.download.speedMbps || 0}
           maxValue={Math.max(100, currentSpeed * 1.5, result?.download.speedMbps || 100)}
-          label={isRunning ? getPhaseLabel() : (result ? "Download Speed" : "Ready to Test")}
+          label={isRunning ? getPhaseLabel() : result ? "Download Speed" : "Ready to Test"}
           isActive={isRunning}
-          color={progress.phase === 'upload' ? 'success' : 'primary'}
+          color={progress.phase === "upload" ? "success" : "primary"}
         />
       </div>
+
+      {/* Speed Graph */}
+      {(isRunning || result) && (
+        <div className="bg-muted/30 rounded-lg p-3">
+          <div className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
+            <BarChart3 className="w-3 h-3" />
+            {isRunning ? `Real-time ${progress.phase === "upload" ? "Upload" : "Download"} Speed` : "Speed Graph"}
+          </div>
+          <SpeedGraph
+            dataPoints={graphData}
+            isActive={isRunning && (progress.phase === "download" || progress.phase === "upload")}
+            phase={graphPhase}
+            maxValue={Math.max(50, currentSpeed * 1.2)}
+          />
+        </div>
+      )}
 
       {/* Progress Bar */}
       {isRunning && (
@@ -196,12 +253,7 @@ export function SpeedTestPanel({ onComplete }: SpeedTestPanelProps) {
 
       {/* Action Buttons */}
       <div className="flex gap-3 justify-center">
-        <Button
-          onClick={startTest}
-          disabled={isRunning}
-          size="lg"
-          className="px-8"
-        >
+        <Button onClick={startTest} disabled={isRunning} size="lg" className="px-8">
           {isRunning ? (
             <>
               <Square className="mr-2 h-5 w-5" />
@@ -214,13 +266,9 @@ export function SpeedTestPanel({ onComplete }: SpeedTestPanelProps) {
             </>
           )}
         </Button>
-        
+
         {result && !isRunning && (
-          <Button
-            onClick={shareResult}
-            variant="outline"
-            size="lg"
-          >
+          <Button onClick={shareResult} variant="outline" size="lg">
             <Share2 className="mr-2 h-5 w-5" />
             Share
           </Button>
