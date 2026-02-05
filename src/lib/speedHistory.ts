@@ -1,10 +1,14 @@
-import { SpeedTestResult } from "./speedtest";
+import type { SpeedTestResult } from "./speedtest";
+import { calculateNetworkQuality } from "./networkScoring";
 
 export interface SpeedHistoryEntry extends SpeedTestResult {
   id: string;
   ipAddress?: string;
   isp?: string;
   location?: string;
+  serverName?: string;
+  qualityScore?: number;
+  qualityGrade?: string;
 }
 
 const STORAGE_KEY = "speedtest_history";
@@ -14,14 +18,26 @@ export function saveTestResult(
   result: SpeedTestResult,
   ipAddress?: string,
   isp?: string,
-  location?: string
+  location?: string,
+  serverName?: string
 ): SpeedHistoryEntry {
+  // Calculate quality score
+  const quality = calculateNetworkQuality(
+    result.ping.latency,
+    result.ping.jitter,
+    result.download.speedMbps,
+    result.upload.speedMbps
+  );
+
   const entry: SpeedHistoryEntry = {
     ...result,
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     ipAddress,
     isp,
     location,
+    serverName,
+    qualityScore: quality.overallScore,
+    qualityGrade: quality.grade,
   };
 
   const history = getTestHistory();

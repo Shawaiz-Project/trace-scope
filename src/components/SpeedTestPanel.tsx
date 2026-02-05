@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { SpeedGauge } from "./SpeedGauge";
 import { SpeedGraph } from "./SpeedGraph";
+import { ServerSelector } from "./ServerSelector";
+import { NetworkQualityScore } from "./NetworkQualityScore";
+import { ShareableResultCard } from "./ShareableResultCard";
 import {
   runSpeedTest,
   formatSpeed,
@@ -11,6 +14,8 @@ import {
   type SpeedTestProgress,
 } from "@/lib/speedtest";
 import { saveTestResult } from "@/lib/speedHistory";
+import { calculateNetworkQuality } from "@/lib/networkScoring";
+import type { ServerInfo } from "@/lib/serverRegions";
 import {
   Play,
   Square,
@@ -44,6 +49,7 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
   const [currentPing, setCurrentPing] = useState(0);
   const [downloadData, setDownloadData] = useState<SpeedDataPoint[]>([]);
   const [uploadData, setUploadData] = useState<SpeedDataPoint[]>([]);
+  const [selectedServer, setSelectedServer] = useState<ServerInfo | null>(null);
   const startTimeRef = useRef<number>(0);
 
   const startTest = useCallback(async () => {
@@ -77,8 +83,8 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
       setResult(testResult);
       onComplete?.(testResult);
 
-      // Save to history
-      saveTestResult(testResult, ipAddress, isp, location);
+      // Save to history with server info
+      saveTestResult(testResult, ipAddress, isp, location, selectedServer?.name);
 
       toast.success("Speed test complete!");
     } catch (error) {
@@ -88,7 +94,7 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
       setIsRunning(false);
       setProgress({ phase: "idle", progress: 0 });
     }
-  }, [onComplete, ipAddress, isp, location]);
+  }, [onComplete, ipAddress, isp, location, selectedServer]);
 
   const getPhaseLabel = () => {
     switch (progress.phase) {
@@ -120,7 +126,7 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
     }
   };
 
-  const shareResult = () => {
+  const shareResultText = () => {
     if (!result) return;
 
     const text = `🚀 Speed Test Results\n📥 Download: ${formatSpeed(result.download.speedMbps)}\n📤 Upload: ${formatSpeed(result.upload.speedMbps)}\n📶 Ping: ${result.ping.latency.toFixed(1)}ms`;
@@ -139,11 +145,30 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
     }
   };
 
+  // Calculate quality score if we have results
+  const qualityScore = result
+    ? calculateNetworkQuality(
+        result.ping.latency,
+        result.ping.jitter,
+        result.download.speedMbps,
+        result.upload.speedMbps
+      )
+    : null;
+
   const graphPhase = progress.phase === "download" ? "download" : progress.phase === "upload" ? "upload" : "idle";
   const graphData = progress.phase === "download" ? downloadData : progress.phase === "upload" ? uploadData : result ? downloadData : [];
 
   return (
     <div className="space-y-6">
+      {/* Server Selector */}
+      <div className="flex justify-center">
+        <ServerSelector
+          selectedServer={selectedServer}
+          onServerSelect={setSelectedServer}
+          disabled={isRunning}
+        />
+      </div>
+
       {/* Main Gauge Display */}
       <div className="flex flex-col items-center">
         <SpeedGauge
@@ -203,7 +228,7 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-card border border-border rounded-lg p-4 text-center">
-              <Activity className="w-5 h-5 mx-auto mb-2 text-info" />
+              <Activity className="w-5 h-5 mx-auto mb-2 text-blue-500" />
               <div className="text-2xl font-bold">{result.ping.latency.toFixed(1)}</div>
               <div className="text-xs text-muted-foreground">Ping (ms)</div>
             </div>
@@ -213,7 +238,7 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
               <div className="text-xs text-muted-foreground">Download (Mbps)</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-4 text-center">
-              <Upload className="w-5 h-5 mx-auto mb-2 text-success" />
+              <Upload className="w-5 h-5 mx-auto mb-2 text-green-500" />
               <div className="text-2xl font-bold">{result.upload.speedMbps.toFixed(1)}</div>
               <div className="text-xs text-muted-foreground">Upload (Mbps)</div>
             </div>
@@ -251,8 +276,18 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
         </div>
       )}
 
+      {/* Network Quality Score */}
+      {result && !isRunning && qualityScore && (
+        <NetworkQualityScore
+          ping={result.ping.latency}
+          jitter={result.ping.jitter}
+          downloadMbps={result.download.speedMbps}
+          uploadMbps={result.upload.speedMbps}
+        />
+      )}
+
       {/* Action Buttons */}
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-3 justify-center flex-wrap">
         <Button onClick={startTest} disabled={isRunning} size="lg" className="px-8">
           {isRunning ? (
             <>
@@ -268,10 +303,24 @@ export function SpeedTestPanel({ onComplete, ipAddress, isp, location }: SpeedTe
         </Button>
 
         {result && !isRunning && (
-          <Button onClick={shareResult} variant="outline" size="lg">
-            <Share2 className="mr-2 h-5 w-5" />
-            Share
-          </Button>
+          <>
+            <Button onClick={shareResultText} variant="outline" size="lg">
+              <Share2 className="mr-2 h-5 w-5" />
+              Share Text
+            </Button>
+
+            <ShareableResultCard
+              downloadMbps={result.download.speedMbps}
+              uploadMbps={result.upload.speedMbps}
+              ping={result.ping.latency}
+              jitter={result.ping.jitter}
+              qualityScore={qualityScore?.overallScore || 0}
+              grade={qualityScore?.grade || "B"}
+              isp={isp || "Unknown ISP"}
+              location={location || "Unknown"}
+              serverRegion={selectedServer?.name || "Auto"}
+            />
+          </>
         )}
       </div>
     </div>
