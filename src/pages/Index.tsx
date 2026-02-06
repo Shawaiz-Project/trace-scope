@@ -5,6 +5,7 @@ import { InfoCard } from "@/components/InfoCard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SpeedTestPanel } from "@/components/SpeedTestPanel";
 import { TestHistory } from "@/components/TestHistory";
+import { ReportDownload } from "@/components/ReportDownload";
 import { getDeviceInfo } from "@/lib/deviceInfo";
 import { fetchIPInfo, type SpeedTestResult } from "@/lib/speedtest";
 import {
@@ -97,32 +98,6 @@ const Index = () => {
   useEffect(() => {
     checkInfo();
   }, []);
-
-  const downloadReport = () => {
-    if (!deviceInfo || !ipInfo) {
-      toast.error("No data to download");
-      return;
-    }
-
-    const report = {
-      timestamp: new Date().toISOString(),
-      ip: ipInfo,
-      device: deviceInfo,
-      speedTest: speedResult,
-    };
-
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `network-report-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast.success("Report downloaded!");
-  };
 
   const locationString = ipInfo ? `${ipInfo.city}, ${ipInfo.country}` : undefined;
 
@@ -241,10 +216,12 @@ const Index = () => {
             {/* Download Report Button */}
             {deviceInfo && (
               <div className="flex justify-end">
-                <Button onClick={downloadReport} variant="outline" size="sm">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Report
-                </Button>
+                <ReportDownload
+                  speedResult={speedResult}
+                  ipInfo={ipInfo}
+                  deviceInfo={deviceInfo}
+                  location={locationString}
+                />
               </div>
             )}
 
