@@ -96,16 +96,21 @@ export const DEFAULT_SERVER_REGIONS: ServerRegion[] = [
 
 // Get server regions from API or use defaults
 export async function fetchServerRegions(): Promise<ServerRegion[]> {
-  try {
-    const baseUrl = getApiBaseUrl();
-    const response = await fetch(`${baseUrl}/server-regions`);
-    if (response.ok) {
-      const data = await response.json();
-      return data.regions || DEFAULT_SERVER_REGIONS;
+  const externalApi = import.meta.env.VITE_API_URL;
+  
+  // Only fetch from API if an external backend URL is configured
+  if (externalApi) {
+    try {
+      const response = await fetch(`${externalApi}/server-regions`);
+      if (response.ok) {
+        const data = await response.json();
+        return data.regions || DEFAULT_SERVER_REGIONS;
+      }
+    } catch (error) {
+      console.warn("Failed to fetch server regions, using defaults:", error);
     }
-  } catch (error) {
-    console.warn("Failed to fetch server regions, using defaults:", error);
   }
+  
   return DEFAULT_SERVER_REGIONS;
 }
 
