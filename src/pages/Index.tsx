@@ -6,15 +6,14 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { SpeedTestPanel } from "@/components/SpeedTestPanel";
 import { TestHistory } from "@/components/TestHistory";
 import { ReportDownload } from "@/components/ReportDownload";
+import { ShareReportLink } from "@/components/ShareReportLink";
+import { AdBanner } from "@/components/AdBanner";
+import { SEOHead } from "@/components/SEOHead";
 import { getDeviceInfo } from "@/lib/deviceInfo";
 import { fetchIPInfo, type SpeedTestResult } from "@/lib/speedtest";
 import {
-  Network,
-  Monitor,
   Gauge,
-  MapPin,
   Loader2,
-  Download,
   Globe,
   Zap,
   RefreshCw,
@@ -47,11 +46,9 @@ const Index = () => {
   const checkInfo = async () => {
     setLoading(true);
     try {
-      // Get device info (client-side)
       const info = getDeviceInfo();
       setDeviceInfo(info);
 
-      // Get IP info from backend
       try {
         const ipData = await fetchIPInfo();
         setIpInfo({
@@ -94,7 +91,6 @@ const Index = () => {
     }
   };
 
-  // Auto-load device info on mount
   useEffect(() => {
     checkInfo();
   }, []);
@@ -103,6 +99,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-bg-gradient">
+      <SEOHead />
+
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -119,8 +117,13 @@ const Index = () => {
         </div>
       </header>
 
+      {/* Top Ad Banner */}
+      <div className="container mx-auto px-4 pt-4 max-w-4xl">
+        <AdBanner slot="top-banner" size="leaderboard" />
+      </div>
+
       {/* Tab Navigation */}
-      <div className="container mx-auto px-4 py-4 max-w-4xl">
+      <nav className="container mx-auto px-4 py-4 max-w-4xl" aria-label="Main navigation">
         <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit mx-auto">
           <button
             onClick={() => setActiveTab("speedtest")}
@@ -129,6 +132,7 @@ const Index = () => {
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
+            aria-current={activeTab === "speedtest" ? "page" : undefined}
           >
             <Gauge className="w-4 h-4" />
             <span className="hidden sm:inline">Speed Test</span>
@@ -140,6 +144,7 @@ const Index = () => {
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
+            aria-current={activeTab === "history" ? "page" : undefined}
           >
             <History className="w-4 h-4" />
             <span className="hidden sm:inline">History</span>
@@ -151,31 +156,34 @@ const Index = () => {
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
+            aria-current={activeTab === "info" ? "page" : undefined}
           >
             <Globe className="w-4 h-4" />
             <span className="hidden sm:inline">Device Info</span>
           </button>
         </div>
-      </div>
+      </nav>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-4 max-w-4xl">
         {/* Speed Test Tab */}
         {activeTab === "speedtest" && (
           <div className="space-y-6">
-            {/* Speed Test Panel */}
-            <div className="bg-card border border-border rounded-xl p-6 md:p-8">
+            <section className="bg-card border border-border rounded-xl p-6 md:p-8" aria-label="Speed test panel">
               <SpeedTestPanel
                 onComplete={setSpeedResult}
                 ipAddress={ipInfo?.ip}
                 isp={ipInfo?.isp}
                 location={locationString}
               />
-            </div>
+            </section>
+
+            {/* Mid-content Ad */}
+            <AdBanner slot="speedtest-mid" size="banner" />
 
             {/* Quick IP Info */}
             {ipInfo && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <section className="grid grid-cols-2 md:grid-cols-4 gap-4" aria-label="Quick network info">
                 <div className="bg-card border border-border rounded-lg p-4 text-center">
                   <div className="text-xs text-muted-foreground mb-1">IP Address</div>
                   <div className="font-mono text-sm truncate">{ipInfo.ip}</div>
@@ -194,6 +202,18 @@ const Index = () => {
                   <div className="text-xs text-muted-foreground mb-1">Connection</div>
                   <div className="text-sm">{deviceInfo?.network.connectionType || "Unknown"}</div>
                 </div>
+              </section>
+            )}
+
+            {/* Share Report Link */}
+            {(speedResult || ipInfo) && (
+              <div className="flex justify-center">
+                <ShareReportLink
+                  speedResult={speedResult}
+                  ipInfo={ipInfo}
+                  deviceInfo={deviceInfo}
+                  location={locationString}
+                />
               </div>
             )}
           </div>
@@ -201,21 +221,27 @@ const Index = () => {
 
         {/* History Tab */}
         {activeTab === "history" && (
-          <div className="bg-card border border-border rounded-xl p-6">
+          <section className="bg-card border border-border rounded-xl p-6" aria-label="Test history">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <History className="w-5 h-5" />
               Test History
             </h2>
             <TestHistory />
-          </div>
+          </section>
         )}
 
         {/* Device Info Tab */}
         {activeTab === "info" && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Download Report Button */}
+            {/* Download Report & Share Buttons */}
             {deviceInfo && (
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2 flex-wrap">
+                <ShareReportLink
+                  speedResult={speedResult}
+                  ipInfo={ipInfo}
+                  deviceInfo={deviceInfo}
+                  location={locationString}
+                />
                 <ReportDownload
                   speedResult={speedResult}
                   ipInfo={ipInfo}
@@ -239,6 +265,9 @@ const Index = () => {
                 <InfoCard label="Timezone" value={ipInfo.timezone} />
               </SectionCard>
             )}
+
+            {/* Sidebar Ad */}
+            <AdBanner slot="info-sidebar" size="sidebar" className="mx-auto" />
 
             {/* Browser & Device Information */}
             {deviceInfo && (
@@ -282,6 +311,11 @@ const Index = () => {
             )}
           </div>
         )}
+
+        {/* Bottom Ad Banner */}
+        <div className="mt-6">
+          <AdBanner slot="bottom-banner" size="leaderboard" />
+        </div>
 
         {/* Privacy Notice */}
         <div className="mt-8 p-4 bg-card/50 rounded-lg border border-border">

@@ -11,7 +11,7 @@ import {
 import { generateShareCard, downloadCard, shareCard } from "@/lib/cardGenerator";
 import { Download, Share2, Loader2, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { useTheme } from "next-themes";
+
 
 interface ShareableResultCardProps {
   downloadMbps: number;
@@ -43,7 +43,7 @@ export function ShareableResultCard({
     dataUrl: string;
     filename: string;
   } | null>(null);
-  const { theme } = useTheme();
+  const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
 
   const generateCard = async () => {
     setGenerating(true);
