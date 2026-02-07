@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from config import get_settings
-from routers import speedtest, network
+from routers import speedtest, network, share
 
 
 @asynccontextmanager
@@ -54,6 +54,7 @@ app.add_middleware(
 # Include routers
 app.include_router(speedtest.router, prefix="/api/v1")
 app.include_router(network.router, prefix="/api/v1")
+app.include_router(share.router, prefix="/api/v1")
 
 
 @app.get("/")
